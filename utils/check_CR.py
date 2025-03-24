@@ -2,19 +2,52 @@ import numpy as np
 import time
 from combtools import cnt_nzeros
 from itertools import combinations
+from typing import Tuple, List, Iterable
 
 def binary_repr(array):
     return sum(1<<i for i,val in enumerate(array) if val)
 
-def check_CR(Mat:np.array)->bool:
+def check_CR(Mat:np.ndarray)->bool:
     h,w = Mat.shape
     if h>w:
         Mat = Mat.T
     binary_reprs = [binary_repr(i) for i in Mat]   
-    for row_i,row_j in combinations(binary_reprs,2):
+    for (idx_i,row_i),(idx_j,row_j) in combinations(enumerate(binary_reprs),2):
         if cnt_nzeros(row_i&row_j) > 1:
+            print(idx_i,idx_j)
             return False
     return True
+
+class CR_checker:
+    '''
+    A class to check if a matrix is a circular ruler.
+
+    '''
+    def __init__(self,H:int,W:int):
+        self.shape = H,W
+        if H > W:
+            self.shape = W,H
+            self.transpose = True
+        else:
+            self.transpose = False
+        self.binary_repr = [0 for _ in range(W)]
+    def __enter__(self):
+        return self
+    def __setitem__(self,coord:Tuple[int,int],value:int):
+        if 1 != value:
+            return
+        if not self.transpose:
+            x,y = coord
+        else:
+            y,x = coord
+        assert 0 <= x < self.shape[0] and 0 <= y < self.shape[1], f'Index out of range: {coord}'
+        self.binary_repr[x] |= 1<<y
+    def __exit__(self,exc_type,exc_value,traceback):
+        binary_reprs = self.binary_repr
+        for (idx_i,row_i),(idx_j,row_j) in combinations(enumerate(binary_reprs),2):
+            if cnt_nzeros(row_i&row_j) > 1:
+                if not self.transpose:raise ValueError(f'CR condition not satisfied!, see row {idx_i} and row {idx_j}')
+                else: raise ValueError(f'CR condition not satisfied!, see column {idx_i} and column {idx_j}')
 
 if __name__ == "__main__":
     assert binary_repr([0,1,1]) == 6
@@ -32,5 +65,14 @@ if __name__ == "__main__":
     assert not check_CR(matrix)
     start=time.time()
     assert check_CR(np.identity(3000))
+    with CR_checker(3,3) as checker:
+        checker[0,2] = 1
+        checker[1,1] = 1
+        checker[2,0] = 1
+    with CR_checker(3,3) as checker:
+        checker[0,0] = 1
+        checker[0,2] = 1
+        checker[1,1] = 1
+        checker[2,0] = 1
+        checker[2,2] = 1
     print(f'Use {time.time()-start} second')
-
